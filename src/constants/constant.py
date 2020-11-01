@@ -1,0 +1,1 @@
+WATCHLIST = ['APPL', 'MSFT']

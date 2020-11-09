@@ -1,0 +1,31 @@
+{
+    "amount": {
+      "amount": "0.01777473",
+      "currency": "BTC"
+    },
+    "buy": {
+      "id": "3f874c3c-3b21-546e-a779-39618798ed8b",
+      "resource": "buy",
+      "resource_path": "/v2/accounts/3e87246d-5263-5e3e-ad2a-db5688d9f732/buys/3f874c3c-3b21-546e-a779-39618798ed8b"
+    },
+    "created_at": "2020-11-01T08:04:10Z",
+    "description": null,
+    "details": {
+      "header": "Bought 0.01777473 BTC ($250.00)",
+      "health": "positive",
+      "payment_method_name": "Charles Schwab - Inves... ********1420",
+      "subtitle": "Using Charles Schwab - Inves... ********1420",
+      "title": "Bought Bitcoin"
+    },
+    "id": "36b65e4c-0f66-59d6-ad07-aa7c1d6431d5",
+    "instant_exchange": false,
+    "native_amount": {
+      "amount": "250.00",
+      "currency": "USD"
+    },
+    "resource": "transaction",
+    "resource_path": "/v2/accounts/3e87246d-5263-5e3e-ad2a-db5688d9f732/transactions/36b65e4c-0f66-59d6-ad07-aa7c1d6431d5",
+    "status": "completed",
+    "type": "buy",
+    "updated_at": "2020-11-01T08:04:10Z"
+}

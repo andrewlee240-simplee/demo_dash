@@ -11,6 +11,9 @@ pandas = "*"
 python-dotenv = "*"
 gs-quant = "*"
 yfinance = "*"
+alpaca-trade-api = "*"
+coinbase = "*"
+numpy = "==1.19.3"
 
 [requires]
 python_version = "3.8"

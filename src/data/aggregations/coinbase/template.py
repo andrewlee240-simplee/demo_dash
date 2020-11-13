@@ -143,12 +143,15 @@ def aggregate_transactions(ignore=None):
     print(df.columns)
     # print(df.xs('created_at', axis=1, level=1, drop_level=False))
     filter = df.xs('created_at', axis=1, level=1, drop_level=False)
-    print("Total Return" , net_return)
-    print("Total Balance" , total_balance)
+
     # print(df.loc[datetime.date(year=2020,month=1,day=1):datetime.now()])
     print(filter)
     for x in crypto_balance:
         print(x , crypto_balance[x])
+    
+    print("Total Return" , net_return)
+    print("Total Balance" , total_balance)
+
     return results
 
 IGNORE = ['USD']

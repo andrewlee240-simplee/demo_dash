@@ -43,8 +43,10 @@ class crypto():
         self.percent_return = None
         self.balances = None
         self.current_rate = None
+        self.df = None
         # Column name match with value used in transaction dictionary
         self.column_names = {
+            NAME : 'name',
             AMOUNT_CHANGED : 'amount_changed',
             USD : 'usd',
             RATE : 'rate(cypto/usd)',
@@ -52,7 +54,6 @@ class crypto():
             TOTAL_VALUE : 'total_value',
             COIN_BALANCE : 'coin_balance',
             NET_CHANGE : 'net_change',
-            NAME : 'name',
             BALANCE_CHANGE : 'balance_change',
         }
 
@@ -82,6 +83,7 @@ class crypto():
         self.coin_balance = crypt_balance
         self.percent_return = round(self.net_return / self.usd_balance , 6) * 100 
         self.current_rate = price_usd_amount
+        self.spot_rate = round(float(self.client.get_spot_price(currency_pair = (self.name + '-USD'))['amount']),6)
 
     def parse_transactions(self):
         crypto_dict = {}
@@ -103,7 +105,7 @@ class crypto():
             crypto_amount = float(trans[CRYPTO_BALANCE][TRANSACTION_AMOUNT])
 
             # Get the difference in current rate vs the ratio between the amount usd spent and crypto accumulated
-            net_change = (self.current_rate - usd_amount / crypto_amount) / self.current_rate * 100
+            net_change = round(self.current_rate / (usd_amount / crypto_amount) * 100 - 100, 4)
 
             crypto_dict[AMOUNT_CHANGED].append(crypto_amount)
             crypto_dict[USD].append(usd_amount)
@@ -129,49 +131,45 @@ class crypto():
             crypto_dict[BALANCE_CHANGE].append(round(usd_balance * net_change / 100 , 6))
             coin_balance -= crypto_amount
             usd_balance = coin_balance * (usd_amount / crypto_amount)
-        
-        # for x in crypto_dict:
-        #     print(x , crypto_dict[x])
-        # return
+
 
         df = pd.DataFrame.from_dict(crypto_dict)
 
         # getting current rate
+        # Purchased Rate
         current_price = round(float(self.client.get_spot_price(currency_pair = (self.name + '-USD'))['amount']),6)
-        net_change_now = (self.current_rate - self.usd_balance / self.coin_balance) / self.current_rate * 100
+        net_change_now = round(self.current_rate / (self.usd_balance  / self.coin_balance) * 100 - 100, 4)
+        
         empty_transaction = {
+            NAME : [self.name],
+            TOTAL_VALUE : [self.usd_balance],
+            COIN_BALANCE : [self.coin_balance],
+            NET_CHANGE : [net_change_now],
+            BALANCE_CHANGE : [usd_balance * net_change / 100] ,
             AMOUNT_CHANGED : [0],
             USD : [0],
             RATE : [current_price],
             DATE_CREATED : [datetime.now().strftime('%Y-%m-%d')],
-            TOTAL_VALUE : [self.usd_balance],
-            COIN_BALANCE : [self.coin_balance],
-            NET_CHANGE : [net_change_now],
-            NAME : [self.name],
-            BALANCE_CHANGE : [usd_balance * net_change / 100] ,
         }
 
-        # results = pd.DataFrame.from_dict(empty_transaction)
-
+        # Add the empty transaction so that we can see our values with the current exchange rate
         df = pd.concat([pd.DataFrame.from_dict(empty_transaction), df], ignore_index=True)
 
         df[TOTAL_VALUE_USD_AT_TIME] = df[COIN_BALANCE] * df[RATE]
 
         # I want to get the difference in values 
 
-        df[ACCOUNT_ACCUMULATED_USD] = df.loc[::-1, 'usd'].cumsum()[::-1]
+        # Reverse column values and get the cummulative sum then reverse that again and add to column
+        # [::-1] will reverse the column values by iterative through it inversely
+
+        df[ACCOUNT_ACCUMULATED_USD] = df.loc[::-1, 'usd'].cumsum()[::-1] # Reverse column values and get the cummulative sum then reverse that again and add to column
         df[ACTUAL_PROFIT] =  round(df[TOTAL_VALUE_USD_AT_TIME] - df[ACCOUNT_ACCUMULATED_USD], 2)
         df[ACCUMULATED_COINS] = round(df.loc[::-1, AMOUNT_CHANGED].cumsum()[::-1], 4)
         df[ACCUMULATED_USD] = round(df[ACCUMULATED_COINS] * df[RATE], 4)
-        # Create value at time
-        value = df['usd'].sum()
-        
 
-        print(df)
-        print(value)
-        print(self.usd_balance)
-        print(self.balances['net_return'])
-        
+        self.df = df
+        return df
+
     def get_balance(self):
         balance = {
             'usd_balance' : self.usd_balance,
@@ -183,15 +181,35 @@ class crypto():
         self.balances = balance
         return balance
 
-    def print_balances(self):
-        print(self.name)
-        for x in self.balances:
-            print('\t' , x, '\t' , self.balances[x])
-        # for x in self.info['transactions']:
-        #     print(x)
-        #     print("----")
+    def aggregate(self):
+        self.set_balance()
+        self.parse_transactions()
+
+        df = self.df
+        value = df['usd'].sum()
+        print(f"--- {self.name} ---")
+        print(df[0:5])
+        print('Value : ' , value)
+        print('USD Balance' , self.usd_balance)
+        print('Net Return USD' , self.net_return)
+        print('Net Return %' , self.percent_return)
+        return df
 
 
-class crypto_wallet():
-    def __init__(self):
+class wallet():
+    def __init__(self, coin):
         self.net = 0
+        self.holdings = []
+        self.coins = coin
+    
+    def aggregate_coins(self):
+        df = pd.DataFrame()
+        coins = self.coins
+        for name in coins:
+            coin = coins[name]
+            coin.aggregate()
+            temp_df = coin.df
+            df = pd.concat([temp_df, df], ignore_index=True)
+
+        self.df = df
+        print(df)

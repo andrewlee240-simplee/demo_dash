@@ -41,7 +41,7 @@ def get_transactions(ignore=None):
             cryptos[account['currency']] = {
                 'transactions' :  cyrpto_trans
             }
-    
+
     # Aggregate Transactions
     # return a dictionary of crypto classes after running some data cleans
     crypto_class = {}
@@ -51,6 +51,10 @@ def get_transactions(ignore=None):
         crypto_class[x].set_balance()
         crypto_class[x].get_balance()
         crypto_class[x].parse_transactions()
+        # crypto_class[x].print_balances()
+        print(crypto_class[x].name)
+    wallet = cc.wallet(crypto_class)
+    wallet.aggregate_coins()
 
 IGNORE = ['USD']
 get_transactions(IGNORE)

@@ -7,12 +7,7 @@ import pandas as pd
 import logging
 from datetime import datetime, date
 import crypto_class as cc # import class crypto as variable cc
-
-pd.set_option('display.width', None)
-pd.set_option('display.max_colwidth', None)
-
-load_dotenv()
-
+from constants import IGNORE
 # Before implementation, set environmental variables with the names API_KEY and API_SECRET
 
 API_KEY = os.getenv('COINBASE_KEY')
@@ -42,7 +37,7 @@ def get_transactions(ignore=None):
                 'transactions' :  cyrpto_trans
             }
 
-    # Aggregate Transactions
+    # Aggregate TransactionsW
     # return a dictionary of crypto classes after running some data cleans
     crypto_class = {}
     for x in cryptos:
@@ -51,10 +46,13 @@ def get_transactions(ignore=None):
         crypto_class[x].set_balance()
         crypto_class[x].get_balance()
         crypto_class[x].parse_transactions()
-        # crypto_class[x].print_balances()
-        print(crypto_class[x].name)
-    wallet = cc.wallet(crypto_class)
-    wallet.aggregate_coins()
 
-IGNORE = ['USD']
+    wallet = cc.wallet(crypto_class)
+    df = wallet.aggregate_coins()
+    wallet.get_summary()
+
+    return crypto_class
+
+# Implement a FIFO method to track profits of coins
+
 get_transactions(IGNORE)

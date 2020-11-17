@@ -30,5 +30,15 @@ Documentations
 finnhub : https://finnhub.io/docs/api#news-sentiment
 new and stock information
 
+# AlphaVantage
+https://www.alphavantage.co/documentation/
+Alpha Vantage provides more than 50 common technical indicator
+500 requests per day (with a 5 requests per minute limit)
+
+# Polygon.io
+Financial Market Data Platform
+Stocks APIs, Forex, Crypto, and More
+Crypto Historical Data for two years
+
 # Creating Dashboards with dash
 simple template is 

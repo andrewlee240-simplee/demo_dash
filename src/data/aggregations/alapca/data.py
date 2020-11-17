@@ -21,7 +21,7 @@ class alpaca_account:
             is an alias of 1Min. Similarly, day is of 1D.
         '''
         if type(symbols) != list:
-            stock = [symbols]
+            symbols = [symbols]
         
         start=pd.Timestamp(start_time, tz=self.time_zone).isoformat()
         end=pd.Timestamp(end_time, tz=self.time_zone).isoformat()

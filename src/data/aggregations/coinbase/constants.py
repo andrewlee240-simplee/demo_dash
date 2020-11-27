@@ -22,4 +22,6 @@ CHANGED_AMOUNT_DIFFERENCE_PERCENT = 'amount_changed_diff_percent'
 CHANGED_AMOUNT_DIFFERENCE_USD =  'amount_changed_diff_usd'
 VALUE = 'value'
 PROFIT_OR_LOSS='profit_or_loss'
+TYPE = 'type'
+
 IGNORE = ['USD']

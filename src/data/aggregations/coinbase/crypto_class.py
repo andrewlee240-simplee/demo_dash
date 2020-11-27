@@ -11,7 +11,7 @@ from constants import ( RATE, AMOUNT_CHANGED, USD, DATE_CREATED ,
                         ACCUMULATED_USD, ACCOUNT_ACCUMULATED_USD, ACTUAL_PROFIT, 
                         TOTAL_VALUE_USD_AT_TIME, AMOUNT_CHANGED_VALUE_NOW, 
                         CHANGED_AMOUNT_DIFFERENCE_PERCENT, 
-                        CHANGED_AMOUNT_DIFFERENCE_USD,VALUE, IGNORE)
+                        CHANGED_AMOUNT_DIFFERENCE_USD,VALUE, IGNORE, TYPE)
 
 
 class crypto():
@@ -63,12 +63,12 @@ class crypto():
         price_usd_amount = float(price_usd[TRANSACTION_AMOUNT])
         total_balance = crypt_balance * price_usd_amount
 
-
-        self.usd_balance = usd_balance
+        self.usd_in = usd_balance
+        self.usd_balance = total_balance
         self.net_return = total_balance - usd_balance
         self.current_exchange = price_usd_amount
         self.coin_balance = crypt_balance
-        self.percent_return = round(self.net_return / self.usd_balance , 6) * 100 
+        self.percent_return = round(self.net_return / usd_balance , 6) * 100 
         self.current_rate = price_usd_amount
         self.spot_rate = round(float(self.client.get_spot_price(currency_pair = (self.name + '-USD'))['amount']),6)
 
@@ -87,6 +87,11 @@ class crypto():
 
 
         for trans in self.info['transactions']:
+
+            if trans['type'] == 'transfer':
+                print('Trans Type' , trans['type'])
+
+
             # (Diff value from purchase and current value)
             usd_amount = float(trans[NATIVE_BALANCE][TRANSACTION_AMOUNT])
             crypto_amount = float(trans[CRYPTO_BALANCE][TRANSACTION_AMOUNT])
@@ -125,8 +130,10 @@ class crypto():
         # getting current rate
         # Purchased Rate
         current_price = float(self.client.get_spot_price(currency_pair = (self.name + '-USD'))['amount'])
-        net_change_now = round(self.current_rate / (self.usd_balance  / self.coin_balance) * 100 - 100, 4)
-        
+        if coin_balance != 0:
+            net_change_now = round(self.current_rate / (self.usd_balance  / self.coin_balance) * 100 - 100, 4)
+        else:
+            net_change_now = self.current_rate    
         empty_transaction = {
             NAME : [self.name],
             TOTAL_VALUE : [self.usd_balance],
@@ -169,7 +176,8 @@ class crypto():
             'net_return' : self.net_return,
             'rate' : self.current_exchange,
             'coin_balance' : self.coin_balance,
-            'percent_return' : self.percent_return 
+            'percent_return' : self.percent_return ,
+            'usd_in' : self.usd_in,
         }
         self.balances = balance
         return balance
@@ -243,20 +251,34 @@ class wallet():
             self.holdings.append(name)
             self.summary[name] = coin.get_balance()
             self.profit += self.summary[name]['net_return']
+            print(self.summary[name]['usd_balance'])
             self.value += self.summary[name]['usd_balance']
         self.profit = round(self.profit, 2)
         return df
     
     def get_summary(self):
+        results = []
+
         for coin in self.summary:
-            print('Coin' , coin)
-            print('\tNet Return' , round(self.summary[coin]['net_return'], 4))
-            print('\t% Return' , round(self.summary[coin]['percent_return'],4))
+            coin_balance = {}
+            coin_balance['name'] = coin
+            coin_balance['net_return'] = round(self.summary[coin]['net_return'], 4)
+            coin_balance['percent_return'] = round(self.summary[coin]['percent_return'],4)
+            coin_balance['percent_return'] = round(self.summary[coin]['percent_return'],4)
+            coin_balance['balance'] = round(self.summary[coin]['usd_balance'], 2)
+            coin_balance['time'] = datetime.now().strftime('%Y-%m-%d:%H-%M')
+            coin_balance['usd_in'] = round(self.summary[coin]['usd_in'], 2)
+            results.append(coin_balance)
+        
+        df = pd.DataFrame(results).set_index('name')
         print(round(self.profit, 4))
         print(round(self.profit / self.value, 4))
+        return df
+
         # total
         # print(df)
 # Implement a FIFO method to track profits of coins
     def get_costbasis(self):
         df = self.df
-        print(df)
+        # print(df)
+        # print(df)

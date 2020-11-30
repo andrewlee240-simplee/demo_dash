@@ -15,8 +15,9 @@ from constants import ( RATE, AMOUNT_CHANGED, USD, DATE_CREATED ,
 
 
 class crypto():
-    def __init__(self, name, info, client):
-        
+    def __init__(self, name, info, client, test=None):
+        self.tests = test
+
         self.name = name
         self.info = info
         self.client = client
@@ -42,6 +43,7 @@ class crypto():
             COIN_BALANCE : 'coin_balance',
             NET_CHANGE : 'net_change',
             BALANCE_CHANGE : 'balance_change',
+            TYPE : 'type'
         }
 
             # ACCUMULATED_USD : 'accumulated_usd',
@@ -85,12 +87,9 @@ class crypto():
         # We want to add a column to see what our current values are now...
         # So we add an empty trnasaction
 
-
+        json = []
         for trans in self.info['transactions']:
-
-            if trans['type'] == 'transfer':
-                print('Trans Type' , trans['type'])
-
+            json.append(trans)
 
             # (Diff value from purchase and current value)
             usd_amount = float(trans[NATIVE_BALANCE][TRANSACTION_AMOUNT])
@@ -103,7 +102,8 @@ class crypto():
             crypto_dict[USD].append(usd_amount)
             crypto_dict[RATE].append(usd_amount / crypto_amount)
             crypto_dict[DATE_CREATED].append(datetime.strptime(trans[self.column_names[DATE_CREATED]], '%Y-%m-%dT%XZ').date())
-            
+            crypto_dict[TYPE] = trans[TYPE]
+
             # Round Values
             usd_balance = round(usd_balance, 6)
             coin_balance = round(coin_balance, 6)
@@ -144,6 +144,7 @@ class crypto():
             USD : [0],
             RATE : [current_price],
             DATE_CREATED : [datetime.now().strftime('%Y-%m-%d')],
+            TYPE : ['']
         }
 
         # Add the empty transaction so that we can see our values with the current exchange rate
@@ -258,7 +259,7 @@ class wallet():
     
     def get_summary(self):
         results = []
-
+        time_now = datetime.now().strftime('%Y-%m-%d:%H-%M')
         for coin in self.summary:
             coin_balance = {}
             coin_balance['name'] = coin
@@ -266,13 +267,13 @@ class wallet():
             coin_balance['percent_return'] = round(self.summary[coin]['percent_return'],4)
             coin_balance['percent_return'] = round(self.summary[coin]['percent_return'],4)
             coin_balance['balance'] = round(self.summary[coin]['usd_balance'], 2)
-            coin_balance['time'] = datetime.now().strftime('%Y-%m-%d:%H-%M')
+            coin_balance['time'] = time_now
             coin_balance['usd_in'] = round(self.summary[coin]['usd_in'], 2)
             results.append(coin_balance)
         
         df = pd.DataFrame(results).set_index('name')
-        print(round(self.profit, 4))
-        print(round(self.profit / self.value, 4))
+        print("Profit : " ,round(self.profit, 4))
+        print("Percent Profit : " , round(self.profit / self.value, 4))
         return df
 
         # total
@@ -280,5 +281,41 @@ class wallet():
 # Implement a FIFO method to track profits of coins
     def get_costbasis(self):
         df = self.df
-        # print(df)
-        # print(df)
+        TRANSACTION_TYPE = 'transaction_type'
+        BOUGHT = 'bought'
+        SOLD = 'sold'
+        # Transaction Type is it a sell or a buy
+        df[TRANSACTION_TYPE] = df[USD].apply(lambda x : BOUGHT if x >= 0 else SOLD)
+        print(df[[NAME, AMOUNT_CHANGED, USD, TRANSACTION_TYPE]][0:50])
+        # Create a cost basis, determeind by coin
+        # Set an initial amount
+        
+        # We can visualize this as a stack
+        # Holds amount of coin for number purchased
+
+        grouped_df = df.groupby(NAME)
+        print(grouped_df)
+        for key, item in grouped_df:
+            group = grouped_df.get_group(key)
+            initial = 0
+
+            # Iterate through dataframe and create a stack to find out the cost basis is.
+            cost_basis = []
+            sold_coins = []
+
+            for index, row in group.iterrows():
+                trans_cost = {'amount' : row[AMOUNT_CHANGED], 'rate' : row[RATE]}
+                # print(row[NAME] , " and " , trans_cost)
+                if row[TRANSACTION_TYPE] == BOUGHT:
+                    cost_basis.insert(0, trans_cost)
+                else:
+                    sold_coins.insert(0, trans_cost)
+                
+            # print(cost_basis)
+            print(key)
+            print("---Sold Coins---")
+            print(sold_coins)
+
+            # print(grouped_df.get_group(key), "\n\n")
+
+

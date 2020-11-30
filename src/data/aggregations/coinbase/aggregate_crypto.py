@@ -54,5 +54,3 @@ def get_transactions(ignore=None):
     return crypto_class
 
 # Implement a FIFO method to track profits of coins
-
-get_transactions(IGNORE)

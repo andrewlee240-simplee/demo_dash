@@ -6,7 +6,6 @@ import plotly.express as px
 import constants as const
 import pandas as pd
 import aggregate_crypto as wallet
-df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/gapminderDataFiveYear.csv')
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 

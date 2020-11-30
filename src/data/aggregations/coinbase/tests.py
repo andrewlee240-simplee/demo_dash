@@ -16,4 +16,7 @@ if path.exists("data/crypto_returns/crypto_return.csv"):
     summary.to_csv('data/crypto_returns/crypto_return.csv', mode='a', header=False)
 else:
     summary.to_csv("data/crypto_returns/crypto_return.csv")
+    
 my_wallet.get_costbasis()
+
+# def read_file(filename):

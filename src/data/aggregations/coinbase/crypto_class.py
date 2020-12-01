@@ -300,21 +300,69 @@ class wallet():
             initial = 0
 
             # Iterate through dataframe and create a stack to find out the cost basis is.
-            cost_basis = []
+            bought_coin = []
             sold_coins = []
 
             for index, row in group.iterrows():
-                trans_cost = {'amount' : row[AMOUNT_CHANGED], 'rate' : row[RATE]}
+                trans_cost = {
+                    AMOUNT_CHANGED: row[AMOUNT_CHANGED], 
+                    RATE : row[RATE]
+                    }
                 # print(row[NAME] , " and " , trans_cost)
                 if row[TRANSACTION_TYPE] == BOUGHT:
-                    cost_basis.insert(0, trans_cost)
+                    bought_coin.insert(0, trans_cost)
                 else:
                     sold_coins.insert(0, trans_cost)
                 
-            # print(cost_basis)
+            cost_basis = []
+            purchase_basis = 0
+            record = 0
+            # Method, for each sold, we try to calculate how much we bought it for at first. 
+            for sold_record in range(len(sold_coins)):
+                # How much are we trying to sell
+                sold_amount = sold_coins[sold_record][AMOUNT_CHANGED]
+                bought_amount = bought_coin[record][AMOUNT_CHANGED]
+
+                # If the transaction bought is smaller the sold amount than we let have to 
+                # subtract the difference and go to the next transaction
+                # We keep doing this until we can't
+                while(sold_amount > bought_amount):
+                    diff = sold_coins[sold_record][RATE] - bought_coin[record][RATE]
+                    cost_basis.append({
+                            'amount' : bought_amount, 
+                            'bought' : bought_coin[record][RATE] , 
+                            'sold' : sold_coins[sold_record][RATE],
+                            'diff' : diff,
+                            'value_diff' : diff * bought_amount,
+                            })
+                    sold_amount -= bought_amount
+                    # Iterate to next buy record.
+                    record += 1
+                    bought_amount = bought_coin[record][AMOUNT_CHANGED]
+
+                while(sold_amount < bought_amount and sold_record < len(sold_coins)):
+                    diff = sold_coins[sold_record][RATE] - bought_coin[record][RATE]
+                    cost_basis.append({
+                            'amount' : bought_amount, 
+                            'bought' : bought_coin[record][RATE] , 
+                            'sold' : sold_coins[sold_record][RATE],
+                            'diff' :diff,
+                            'value_diff' : diff * bought_amount,
+                            })
+                    bought_amount -= sold_amount
+                    sold_record += 1
+                    if sold_record < len(sold_coins):
+                        sold_amount += sold_coins[sold_record][AMOUNT_CHANGED]
+                    
+
             print(key)
             print("---Sold Coins---")
-            print(sold_coins)
+            print('Total Sold ' , cost_basis)
+
+
+
+            # print(sold_coins)
+            
 
             # print(grouped_df.get_group(key), "\n\n")
 

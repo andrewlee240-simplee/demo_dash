@@ -26,3 +26,5 @@ PROFIT_OR_LOSS='profit_or_loss'
 TYPE = 'type'
 
 IGNORE = ['USD']
+# ignore for testing purpose
+# IGNORE = ['USD', 'ALGO', 'YFI' , 'CGLD', 'COMP' , 'MKR' , 'REN' , 'BTC']

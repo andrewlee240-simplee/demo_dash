@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import copy
 import numpy as np
+import logging
 from constants import ( RATE, AMOUNT_CHANGED, USD, DATE_CREATED , 
                         TOTAL_VALUE, COIN_BALANCE, NET_CHANGE,
                         NAME, BALANCE_CHANGE, NATIVE_BALANCE, 
@@ -57,15 +58,25 @@ class crypto():
         crypt_balance = 0
 
         transactions = self.info['transactions']
+        usd_in = 0
+        usd_out = 0
         for transaction in transactions:
-            usd_balance += float(transaction[NATIVE_BALANCE][TRANSACTION_AMOUNT])
+            native_balance = float(transaction[NATIVE_BALANCE][TRANSACTION_AMOUNT])
+            if float(transaction[NATIVE_BALANCE][TRANSACTION_AMOUNT]) > 0:
+                usd_in += native_balance
+            else:
+                usd_out += native_balance
+            #     print(transaction[NATIVE_BALANCE])
+            #     print(transaction['fee'])
+            usd_balance += native_balance
             crypt_balance += float(transaction[CRYPTO_BALANCE][TRANSACTION_AMOUNT])
 
         price_usd = (self.client).get_spot_price(currency_pair = (self.name + '-USD'))
         price_usd_amount = float(price_usd[TRANSACTION_AMOUNT])
         total_balance = crypt_balance * price_usd_amount
 
-        self.usd_in = usd_balance
+        self.usd_in = usd_in
+        self.usd_out = usd_out
         self.usd_balance = total_balance
         self.net_return = total_balance - usd_balance
         self.current_exchange = price_usd_amount
@@ -179,6 +190,7 @@ class crypto():
             'coin_balance' : self.coin_balance,
             'percent_return' : self.percent_return ,
             'usd_in' : self.usd_in,
+            'usd_out' : self.usd_out
         }
         self.balances = balance
         return balance
@@ -244,6 +256,7 @@ class wallet():
     def aggregate_coins(self):
         df = pd.DataFrame()
         coins = self.coins
+        self.coins_spot = {}
         for name in coins:
             coin = coins[name]
             coin.aggregate()
@@ -252,28 +265,44 @@ class wallet():
             self.holdings.append(name)
             self.summary[name] = coin.get_balance()
             self.profit += self.summary[name]['net_return']
-            print(self.summary[name]['usd_balance'])
+            # print(self.summary[name]['usd_balance'])
             self.value += self.summary[name]['usd_balance']
+            self.coins_spot[name] = coin.spot_rate
         self.profit = round(self.profit, 2)
         return df
     
+    # Get summary of investment of all time.
     def get_summary(self):
         results = []
         time_now = datetime.now().strftime('%Y-%m-%d:%H-%M')
         for coin in self.summary:
+
+            coin_summary = self.summary[coin]
             coin_balance = {}
             coin_balance['name'] = coin
-            coin_balance['net_return'] = round(self.summary[coin]['net_return'], 4)
-            coin_balance['percent_return'] = round(self.summary[coin]['percent_return'],4)
-            coin_balance['percent_return'] = round(self.summary[coin]['percent_return'],4)
-            coin_balance['balance'] = round(self.summary[coin]['usd_balance'], 2)
+            coin_balance['net_return'] = round(coin_summary['net_return'], 4)
+            coin_balance['percent_return'] = round(coin_summary['net_return'] / coin_summary['usd_in'] * 100, 3)
+            coin_balance['balance'] = round(coin_summary['usd_balance'], 2)
             coin_balance['time'] = time_now
-            coin_balance['usd_in'] = round(self.summary[coin]['usd_in'], 2)
+            coin_balance['usd_in'] = round(coin_summary['usd_in'], 2)
+            coin_balance['usd_out'] = round(coin_summary['usd_out'], 2)
+            # coin_balance['spot_rate'] = round(coin_summary['usd_out'], 2)
             results.append(coin_balance)
         
         df = pd.DataFrame(results).set_index('name')
+
         print("Profit : " ,round(self.profit, 4))
         print("Percent Profit : " , round(self.profit / self.value, 4))
+        print(df)
+        df_balance = df['balance'].sum()
+        df_usd_in = df['usd_in'].sum()
+        df_usd_out = df['usd_out'].sum()
+
+        df_net = round(df_balance - (df_usd_in + df_usd_out), 4)
+        print('Net Return' , df_net)
+        print('usd in :' , df_usd_in)
+        print('usd out :' , df_usd_out)
+        print('Profit over Current Balance' , round((df_net / df_balance), 4))
         return df
 
         # total
@@ -284,9 +313,15 @@ class wallet():
         TRANSACTION_TYPE = 'transaction_type'
         BOUGHT = 'bought'
         SOLD = 'sold'
+        AMOUNT = 'amount'
+        USD_VALUE = 'usd_value'
+        RATE_DIFF= 'rate_diff'
+        BOUGHT_RATE = 'bought_rate'
+        PURCHASED_VALUE = 'purchased_value'
+        PROFIT= 'profit'
         # Transaction Type is it a sell or a buy
         df[TRANSACTION_TYPE] = df[USD].apply(lambda x : BOUGHT if x >= 0 else SOLD)
-        print(df[[NAME, AMOUNT_CHANGED, USD, TRANSACTION_TYPE]][0:50])
+        # print(df[[NAME, AMOUNT_CHANGED, USD, TRANSACTION_TYPE]][0:50])
         # Create a cost basis, determeind by coin
         # Set an initial amount
         
@@ -294,10 +329,15 @@ class wallet():
         # Holds amount of coin for number purchased
 
         grouped_df = df.groupby(NAME)
-        print(grouped_df)
+        # print(grouped_df)
+        realized_returns = 0
+        leftover_list = []
+        records = []
+        coin_records = []
+        sold_records = []
+
         for key, item in grouped_df:
             group = grouped_df.get_group(key)
-            initial = 0
 
             # Iterate through dataframe and create a stack to find out the cost basis is.
             bought_coin = []
@@ -313,57 +353,120 @@ class wallet():
                     bought_coin.insert(0, trans_cost)
                 else:
                     sold_coins.insert(0, trans_cost)
-                
-            cost_basis = []
-            purchase_basis = 0
-            record = 0
-            # Method, for each sold, we try to calculate how much we bought it for at first. 
-            for sold_record in range(len(sold_coins)):
-                # How much are we trying to sell
-                sold_amount = sold_coins[sold_record][AMOUNT_CHANGED]
-                bought_amount = bought_coin[record][AMOUNT_CHANGED]
+            fifo_list, leftovers = fifo(bought_coin , sold_coins)
+            amount = 0
+            value = 0
+            # print(key)
+            # print(key, )
+            for x in fifo_list:
+                amount += x[AMOUNT]
+                value += x[RATE_DIFF] * x[AMOUNT]
+                sold_records.append({
+                    NAME : key ,
+                    AMOUNT : x[AMOUNT] , 
+                    PROFIT : x[AMOUNT] * x[RATE_DIFF] , 
+                    PURCHASED_VALUE : x[AMOUNT] * x[BOUGHT_RATE],
+                    TYPE : SOLD})
+            # print('total sold amount : ' , amount)
 
-                # If the transaction bought is smaller the sold amount than we let have to 
-                # subtract the difference and go to the next transaction
-                # We keep doing this until we can't
-                while(sold_amount > bought_amount):
-                    diff = sold_coins[sold_record][RATE] - bought_coin[record][RATE]
-                    cost_basis.append({
-                            'amount' : bought_amount, 
-                            'bought' : bought_coin[record][RATE] , 
-                            'sold' : sold_coins[sold_record][RATE],
-                            'diff' : diff,
-                            'value_diff' : diff * bought_amount,
-                            })
-                    sold_amount -= bought_amount
-                    # Iterate to next buy record.
-                    record += 1
-                    bought_amount = bought_coin[record][AMOUNT_CHANGED]
-
-                while(sold_amount < bought_amount and sold_record < len(sold_coins)):
-                    diff = sold_coins[sold_record][RATE] - bought_coin[record][RATE]
-                    cost_basis.append({
-                            'amount' : bought_amount, 
-                            'bought' : bought_coin[record][RATE] , 
-                            'sold' : sold_coins[sold_record][RATE],
-                            'diff' :diff,
-                            'value_diff' : diff * bought_amount,
-                            })
-                    bought_amount -= sold_amount
-                    sold_record += 1
-                    if sold_record < len(sold_coins):
-                        sold_amount += sold_coins[sold_record][AMOUNT_CHANGED]
-                    
-
-            print(key)
-            print("---Sold Coins---")
-            print('Total Sold ' , cost_basis)
+            realized_returns += value
+            if leftover_list is None:
+                leftover_list = leftovers
+            elif leftovers is not None:
+                leftover_list = leftover_list + leftovers
+            else:
+                logging.error("Something wrong happened")
 
 
+# Transfer this later
+            current_portfolio = {NAME : key , AMOUNT : 0 , USD_VALUE : 0}
+            for x in leftovers:
+                # print('\t', x)
+                current_portfolio[AMOUNT] += x[AMOUNT] 
+                current_portfolio[USD_VALUE] += x[AMOUNT] * self.coins_spot[key]
+                # every coin we purchased that we haven't sold.
+                coin_records.append(
+                    {NAME : key , 
+                    AMOUNT : x[AMOUNT] , 
+                    PURCHASED_VALUE : x[AMOUNT] * x[BOUGHT_RATE], 
+                    USD_VALUE : x[AMOUNT] * self.coins_spot[key], 
+                    TYPE : BOUGHT })
+            records.append(current_portfolio)
+        unrealized_gains = 0
+        for x in records:
+            # print(x)
+            unrealized_gains += x[USD_VALUE]
 
-            # print(sold_coins)
-            
+        print("Total Gains : " , unrealized_gains)
+        sold_diff = 0
+        bought_diff = 0
+        for x in coin_records:
+            bought_diff += x[USD_VALUE] - x[PURCHASED_VALUE]
 
-            # print(grouped_df.get_group(key), "\n\n")
+        for x in sold_records:
+            sold_diff += x[PROFIT]
+            # print(x)    
+        
+        
+        print('Unrealized profits : ' ,bought_diff)
+        print('realized profits : ' ,sold_diff)
+        print("Net profits" , bought_diff + sold_diff)
 
+        return records
+        # for x in leftover_list:
+        #     print(x)
 
+# Add current rate to leftovers...
+def fifo(bought, sold):
+    #Run fifo method
+    bought_iter = 0
+    curr_bought = bought[bought_iter][AMOUNT_CHANGED]
+    fifo_list = []
+    leftover = None
+
+    for trans in sold:
+        curr_sold = abs(trans[AMOUNT_CHANGED])
+
+        while(curr_sold != 0):
+            # if what we sold is greater than purchase
+            # reduce from amount we sold then go to the next transaction where we purchased.
+            if curr_sold >= curr_bought:
+                curr_sold -= curr_bought
+                add_trans = ({
+                    'amount' : curr_bought , 
+                    'sold_rate' : trans['rate'], 
+                    'bought_rate' : bought[bought_iter]['rate'], 
+                    'rate_diff' :  trans['rate'] - bought[bought_iter]['rate']}
+                    )
+                try:
+                    bought_iter += 1
+                    curr_bought = bought[bought_iter][AMOUNT_CHANGED]
+                    fifo_list.append(add_trans)
+                except Exception as error:
+                    print('There are more sold than there were purchased !')
+            else:
+                curr_bought -= curr_sold
+                add_trans = ({
+                    'amount' : curr_sold , 
+                    'sold_rate' : trans['rate'], 
+                    'bought_rate' : bought[bought_iter]['rate'],
+                    'rate_diff' :  trans['rate'] - bought[bought_iter]['rate']}
+                    )
+                fifo_list.append(add_trans)
+                curr_sold = 0
+        leftover = ({
+                    'amount' : curr_bought , 
+                    'sold_rate' : trans['rate'], 
+                    'bought_rate' : bought[bought_iter]['rate'], 
+                    'rate_diff' :  trans['rate'] - bought[bought_iter]['rate']}
+                    )
+
+    leftover_list = []
+    if bought_iter != 0:
+        bought_iter += 1
+    if bought_iter < len(bought):
+        for transaction in bought[bought_iter:]:
+            leftover_list.append({'amount' : transaction[AMOUNT_CHANGED], 'bought_rate' : transaction[RATE]})
+        if leftover is not None:    
+            leftover_list.insert(0,leftover)
+    return fifo_list, leftover_list

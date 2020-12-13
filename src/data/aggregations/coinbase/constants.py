@@ -25,6 +25,10 @@ VALUE = 'value'
 PROFIT_OR_LOSS='profit_or_loss'
 TYPE = 'type'
 
+PURCHASED_RECORDS = 'purchased_records'
+RECORDS = 'records'
+SOLD_RECORDS = 'sold_records'
+
 IGNORE = ['USD']
 # ignore for testing purpose
 # IGNORE = ['USD', 'ALGO', 'YFI' , 'CGLD', 'COMP' , 'MKR' , 'REN' , 'BTC']

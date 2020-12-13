@@ -12,7 +12,8 @@ from constants import ( RATE, AMOUNT_CHANGED, USD, DATE_CREATED ,
                         ACCUMULATED_USD, ACCOUNT_ACCUMULATED_USD, ACTUAL_PROFIT, 
                         TOTAL_VALUE_USD_AT_TIME, AMOUNT_CHANGED_VALUE_NOW, 
                         CHANGED_AMOUNT_DIFFERENCE_PERCENT, 
-                        CHANGED_AMOUNT_DIFFERENCE_USD,VALUE, IGNORE, TYPE)
+                        CHANGED_AMOUNT_DIFFERENCE_USD,VALUE, IGNORE, TYPE,
+                        PURCHASED_RECORDS, RECORDS, SOLD_RECORDS)
 
 
 class crypto():
@@ -291,15 +292,18 @@ class wallet():
         
         df = pd.DataFrame(results).set_index('name')
 
-        print("Profit : " ,round(self.profit, 4))
-        print("Percent Profit : " , round(self.profit / self.value, 4))
-        print(df)
+
         df_balance = df['balance'].sum()
         df_usd_in = df['usd_in'].sum()
         df_usd_out = df['usd_out'].sum()
 
         df_net = round(df_balance - (df_usd_in + df_usd_out), 4)
+
+        print("Profit : " ,round(self.profit, 4))
+        print("Percent Profit : " , round(self.profit / self.value, 4))
+        # print(df)
         print('Net Return' , df_net)
+        print('Current Balance ' , df_balance)
         print('usd in :' , df_usd_in)
         print('usd out :' , df_usd_out)
         print('Profit over Current Balance' , round((df_net / df_balance), 4))
@@ -411,8 +415,12 @@ class wallet():
         print('Unrealized profits : ' ,bought_diff)
         print('realized profits : ' ,sold_diff)
         print("Net profits" , bought_diff + sold_diff)
-
-        return records
+        all_records = {
+            PURCHASED_RECORDS : records,
+            RECORDS : coin_records,
+            SOLD_RECORDS : sold_records,
+        }
+        return all_records
         # for x in leftover_list:
         #     print(x)
 
@@ -452,6 +460,8 @@ def fifo(bought, sold):
                     'bought_rate' : bought[bought_iter]['rate'],
                     'rate_diff' :  trans['rate'] - bought[bought_iter]['rate']}
                     )
+                    
+                add_trans = create_transaction(curr_sold, trans[RATE] , bought[bought_iter][RATE], trans[RATE] - bought[bought_iter][RATE])
                 fifo_list.append(add_trans)
                 curr_sold = 0
         leftover = ({
@@ -470,3 +480,10 @@ def fifo(bought, sold):
         if leftover is not None:    
             leftover_list.insert(0,leftover)
     return fifo_list, leftover_list
+
+def create_transaction(amount, sold_rate, bought_rate, rate_diff):
+    return {'amount' : amount , 
+            'sold_rate' : sold_rate, 
+            'bought_rate' : bought_rate,
+            'rate_diff' :  rate_diff}
+        

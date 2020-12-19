@@ -98,7 +98,6 @@ class wallet():
         sold_records = []
         for key, item in grouped_df:
             group = grouped_df.get_group(key)
-            print(group[COIN_BALANCE])
             bought_coin = []
             sold_coins = []
             for index, row in group.iterrows():
@@ -112,22 +111,25 @@ class wallet():
                 else:
                     sold_coins.insert(0, trans_cost)
 
-            amount = 0
-            value = 0
+            print(key)
             spot_rate = 1/float(self.client.get_spot_price(currency_pair = (key+ SPOT_USD))[AMOUNT])
             fifo_list, leftovers = fifo(bought_coin , sold_coins, spot_rate)
+
+            realized_gains = 0
+            unrealized_gains = 0
+        # return all_records
             # print('fifo')
-            # for x in fifo_list:
-            #     print(x)
-            # print('leftovers')
-            # for x in leftovers:
-            #     print(x)
-            #     print('\t', x[AMOUNT] * x[RATE_DIFF])
-            # print(key)
-            # print(fifo_list)
-            # print(leftovers)
-            # print('\tamount: ', amount)
-            # print('\tvalue: ' ,value)
+            for x in fifo_list:
+                print(x)
+            print('leftovers')
+            for x in leftovers:
+                print(x)
+                print('\t', x[AMOUNT] * x[RATE_DIFF])
+            print(key)
+            print(fifo_list)
+            print(leftovers)
+            print('\tamount: ', amount)
+            print('\tvalue: ' ,value)
         # Aggregate TransactionsW
         # return a dictionary of crypto classes after running some data cleans
         # crypto_class = {}
@@ -142,33 +144,47 @@ def fifo(bought, sold, spot_rate):
     curr_bought = bought[bought_iter][COIN_BALANCE]
     fifo_list = []
     leftover = None
-
+    # Lets do some checks and balances...
+    total_sum = 0
     for trans in sold:
-        print(trans[COIN_BALANCE])
+        total_sum += abs(trans[COIN_BALANCE])
+    print("Total sold is : "  , total_sum)
+    for trans in sold:
+        
         curr_sold = abs(trans[COIN_BALANCE])
+        # print('CoinBalance : ' , curr_sold , ' .. vs .. ' , curr_bought)
+
         while(curr_sold != 0):
+            # print('\tCoinBalance : ' , curr_sold , ' .. vs .. ' , curr_bought)
             # if what we sold is greater than purchase
             # reduce from amount we sold then go to the next transaction where we purchased.
-            if curr_sold >= curr_bought:
+            # print('Curr_sold is ...' , curr_sold)
+            if curr_sold > curr_bought:
                 curr_sold -= curr_bought
                 current_amount = curr_bought
-                rate = bought[bought_iter][RATE]
+
                 try:
                     bought_iter += 1
                     curr_bought = bought[bought_iter][COIN_BALANCE]
                 except Exception as error:
                     logging.error('There are more sold than there were purchased !')
             else:
+                # if the sold is smaller than the bought,
                 curr_bought -= curr_sold
                 current_amount = curr_sold
-                rate = bought[bought_iter][RATE]
+                # print('\tMove to the next in sold stacks (leave while loop)', current_amount)
                 curr_sold = 0
-
+            rate = bought[bought_iter][RATE]
+            # print(f'Results : Sold - {curr_sold} ... {current_amount}')
             add_trans = create_transaction(current_amount, trans[RATE] ,rate, trans[INDEX])
-            fifo_list.append(add_trans)
-        # if we subtracted from a value that we already removed from.
-        leftover = create_transaction(curr_bought, trans[RATE] , rate, bought[bought_iter][INDEX])
+            total_sum -= current_amount
 
+            fifo_list.append(add_trans)
+        # print('\tCurrent Amount Unaccounted for ' , total_sum)        
+        # if we subtracted from a value that we already removed from.
+        rate = bought[bought_iter][RATE]
+        leftover = create_transaction(curr_bought, trans[RATE] , rate, bought[bought_iter][INDEX])
+    print('\tCurrent Amount Unaccounted for ' , round(total_sum,4))  
     leftover_list = []
     if bought_iter != 0:
         bought_iter += 1

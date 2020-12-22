@@ -103,6 +103,7 @@ class crypto():
         for trans in self.info['transactions']:
             json.append(trans)
 
+            print(trans)
             # (Diff value from purchase and current value)
             usd_amount = float(trans[NATIVE_BALANCE][TRANSACTION_AMOUNT])
             crypto_amount = float(trans[CRYPTO_BALANCE][TRANSACTION_AMOUNT])

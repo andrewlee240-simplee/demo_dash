@@ -6,11 +6,13 @@ import copy
 import numpy as np
 import logging
 from dotenv import load_dotenv
+import sys
 
 # import two file that contain our coin and wallet object
 from coin import coin
 from wallet import wallet
 
+# logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 COINBASE_KEY = 'COINBASE_KEY'
 COINBASE_SECRET = 'COINBASE_SECRET'
 
@@ -26,5 +28,6 @@ def get_portfolio():
 
     # set up our wallet
     my_wallet = wallet(api_key, api_secret)
+    my_wallet.filter_dates('2000-01-01')
     my_wallet.get_costbasis()
 get_portfolio()

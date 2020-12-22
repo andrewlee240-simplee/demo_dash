@@ -1,7 +1,7 @@
 from coinbase.wallet.client import Client
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime 
 import copy
 import numpy as np
 import logging
@@ -9,6 +9,10 @@ from constants import (IGNORE)
 # from data.aggregations.coinbase.constants import DATE
 # from data.aggregations.coinbase.constants import DATE_CREATED
 
+UNREALIZED = 'unrealized'
+REALIZED = 'realized'
+SOLD_INDEX = 'sold_transaciton'
+BOUGHT_INDEX = 'bought_transaction'
 TYPE = 'type'
 USD_VALUE = 'usd_value'
 COIN_BALANCE = 'coin_balance'
@@ -46,6 +50,7 @@ class wallet():
         self.balance = 0
         self.returns = 0
         # self.summary = {HOLDINGS : [], REALIZED_GAINS : 0}
+        # self.ignore = ['ETH']
         self.ignore = IGNORE
         
         # Built in function to get account details from coinbase client.
@@ -77,25 +82,33 @@ class wallet():
                     }
                     my_transactions.append(row)
         df = pd.DataFrame(my_transactions)
-        df[RATE] = df[USD_VALUE] / df[COIN_BALANCE]
+        df[RATE] =   df[USD_VALUE] / df[COIN_BALANCE]
         logging.info("Created dataframe of transactions")
-        print("DF...")
-        print(df[COIN_BALANCE])
         self.df = df
+        date_filter = pd.to_datetime('2020-01-01')
+        print(df[df[DATE_CREATED] > date_filter])
         return df
+    
+    def filter_dates(self, first, last=None):
+        if last == None:
+            last = 'today'
+        date_filter = pd.to_datetime(first)
+        # df = self.df
+        self.df = self.df[self.df[DATE_CREATED] > date_filter]
+        self.df = self.df[self.df[DATE_CREATED] < pd.to_datetime('today')]
 
     def get_costbasis(self):
         # Settup
         logging.info("Calculating cost basis through FIFO")
-        df = self.df
+        df = copy.deepcopy(self.df)
         df[TRANSACTION_TYPE] = df[USD_VALUE].apply(lambda x : BOUGHT if x >= 0 else SOLD)
-
+        
         # Group by cryptocurrency
         grouped_df = df.groupby(NAME)
-        leftover_list = []
-        records = []
-        coin_records = []
-        sold_records = []
+        realized_gains = 0
+        unrealized_gains = 0
+        transactions = []
+        coin_summary = []
         for key, item in grouped_df:
             group = grouped_df.get_group(key)
             bought_coin = []
@@ -111,32 +124,35 @@ class wallet():
                 else:
                     sold_coins.insert(0, trans_cost)
 
-            print(key)
-            spot_rate = 1/float(self.client.get_spot_price(currency_pair = (key+ SPOT_USD))[AMOUNT])
+            logging.info(f"Coin is {key}")
+            spot_rate = float(self.client.get_spot_price(currency_pair = (key+ SPOT_USD))[AMOUNT])
             fifo_list, leftovers = fifo(bought_coin , sold_coins, spot_rate)
 
-            realized_gains = 0
-            unrealized_gains = 0
-        # return all_records
-            # print('fifo')
+            coin_unrealized = 0
+            coin_realized = 0
             for x in fifo_list:
-                print(x)
-            print('leftovers')
+                coin_realized += (x[AMOUNT] * x[RATE_DIFF]) 
+                coin_value = {'value' : x[AMOUNT] * x[RATE_DIFF] , 'realized' : True , 'name' : key , SOLD_INDEX : x[SOLD_INDEX] , BOUGHT_INDEX : x[BOUGHT_INDEX]}
+                transactions.append(coin_value)
             for x in leftovers:
-                print(x)
-                print('\t', x[AMOUNT] * x[RATE_DIFF])
-            print(key)
-            print(fifo_list)
-            print(leftovers)
-            print('\tamount: ', amount)
-            print('\tvalue: ' ,value)
-        # Aggregate TransactionsW
-        # return a dictionary of crypto classes after running some data cleans
-        # crypto_class = {}
-        # for x in cryptos:
-        #     # Create different classes for each crypto type
+                coin_unrealized += (x[AMOUNT] *  x[RATE_DIFF])
+                coin_value = {'value' : x[AMOUNT] * x[RATE_DIFF] , 'realized' : False , 'name' : key , SOLD_INDEX : x[SOLD_INDEX] , BOUGHT_INDEX : x[BOUGHT_INDEX]}
+                transactions.append(coin_value)
 
-        # return crypto_class
+            coin_summary.append({NAME : key , UNREALIZED : coin_unrealized , REALIZED : coin_realized})
+            logging.info(f'{key} realized gains {coin_realized}')
+            logging.info(f'{key} unrealized gains {coin_unrealized}')
+            
+        logging.info(f"Realized : {realized_gains}")
+        logging.info(f"Unrealized : {unrealized_gains}")
+        
+        fifo_df = pd.DataFrame(transactions)
+        logging.info('Total Unrealized Return : {}'.format(fifo_df[fifo_df['realized'] == False]['value'].sum()))
+        logging.info('Total realized Return : {}'.format(fifo_df[fifo_df['realized'] == True]['value'].sum()))
+        for x in coin_summary:
+            print(x)
+        return fifo_df
+
 
 def fifo(bought, sold, spot_rate):
     #Run fifo method
@@ -146,19 +162,13 @@ def fifo(bought, sold, spot_rate):
     leftover = None
     # Lets do some checks and balances...
     total_sum = 0
-    for trans in sold:
-        total_sum += abs(trans[COIN_BALANCE])
-    print("Total sold is : "  , total_sum)
+
     for trans in sold:
         
         curr_sold = abs(trans[COIN_BALANCE])
         # print('CoinBalance : ' , curr_sold , ' .. vs .. ' , curr_bought)
 
         while(curr_sold != 0):
-            # print('\tCoinBalance : ' , curr_sold , ' .. vs .. ' , curr_bought)
-            # if what we sold is greater than purchase
-            # reduce from amount we sold then go to the next transaction where we purchased.
-            # print('Curr_sold is ...' , curr_sold)
             if curr_sold > curr_bought:
                 curr_sold -= curr_bought
                 current_amount = curr_bought
@@ -176,32 +186,38 @@ def fifo(bought, sold, spot_rate):
                 curr_sold = 0
             rate = bought[bought_iter][RATE]
             # print(f'Results : Sold - {curr_sold} ... {current_amount}')
-            add_trans = create_transaction(current_amount, trans[RATE] ,rate, trans[INDEX])
+            add_trans = create_transaction(current_amount, trans[RATE] ,rate, trans[INDEX], bought[bought_iter][INDEX])
             total_sum -= current_amount
 
             fifo_list.append(add_trans)
         # print('\tCurrent Amount Unaccounted for ' , total_sum)        
         # if we subtracted from a value that we already removed from.
         rate = bought[bought_iter][RATE]
-        leftover = create_transaction(curr_bought, trans[RATE] , rate, bought[bought_iter][INDEX])
-    print('\tCurrent Amount Unaccounted for ' , round(total_sum,4))  
+        leftover = create_transaction(curr_bought, trans[RATE] , rate, trans[INDEX], bought[bought_iter][INDEX])
+    # print('\tCurrent Amount Unaccounted for ' , round(total_sum,4))  
+
     leftover_list = []
     if bought_iter != 0:
         bought_iter += 1
     if bought_iter < len(bought):
         for transaction in bought[bought_iter:]:
             # print('transaction[coin_Balance]' , transaction[COIN_BALANCE])
-            add_trans = create_transaction(transaction[COIN_BALANCE] , spot_rate, transaction[RATE], transaction[INDEX])
+            add_trans = create_transaction(transaction[COIN_BALANCE] , spot_rate, transaction[RATE], None , transaction[INDEX])
             leftover_list.append(add_trans)
         if leftover is not None:    
             leftover_list.insert(0,leftover)
     
     return fifo_list, leftover_list
 
-def create_transaction(amount, sold_rate, bought_rate, index):
-    return {AMOUNT : amount , 
+def create_transaction(amount, sold_rate, bought_rate, sold_id , bought_id):
+
+    logging.info(f'\tProfit (({round(sold_rate, 4)} - {round(bought_rate,4)}) * {round(amount,4)}) =  {(sold_rate - bought_rate) * amount}')
+    adict = {AMOUNT : amount , 
             SOLD_RATE : sold_rate, 
             BOUGHT_RATE : bought_rate,
             RATE_DIFF :  sold_rate - bought_rate,
-            INDEX : index}
+            SOLD_INDEX : sold_id,
+            BOUGHT_INDEX : bought_id}
+        
+    return adict
         

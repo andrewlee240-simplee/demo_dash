@@ -37,5 +37,6 @@ def get_portfolio():
     print('Total Input USD : {}'.format(summary['usd_balance'].sum()))
     print('Total Value : {}'.format(summary['Current Value'].sum()))
     print('Total Return : {}'.format(summary['Diff Value'].sum()))
+    summary.to_csv('summary_file.csv')
 
 get_portfolio()

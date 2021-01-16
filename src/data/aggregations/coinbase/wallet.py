@@ -82,6 +82,7 @@ class wallet():
             # if the currency is not in our ignore file.
             if account['id'] != account['currency'] and account['currency'] not in self.ignore:
                 transactions = self.client.get_transactions(account['id'])
+                logging.info("transaction :\n {}".format(transactions))
                 for transaction in transactions['data']:
                     row = {
                         TYPE : transaction[TRANSACTION_KEYS[TYPE]],
@@ -108,7 +109,7 @@ class wallet():
 
     def get_costbasis(self):
         # Settup
-        logging.info("Calculating cost basis through FIFO")
+        logging.info("Calculating cost basis")
         df = copy.deepcopy(self.df)
         df[TRANSACTION_TYPE] = df[USD_VALUE].apply(lambda x : BOUGHT if x >= 0 else SOLD)
     
@@ -119,6 +120,7 @@ class wallet():
         coin_summary = []
         for key, item in grouped_df:
             group = grouped_df.get_group(key)
+            logging.info(group.sort_values(by=['created_at'] , ascending=False).to_string())
             bought_coin = []
             sold_coins = []
             total_balance_usd = group[USD_VALUE].sum()
@@ -131,6 +133,7 @@ class wallet():
                 if row[TRANSACTION_TYPE] == BOUGHT:
                     bought_coin.append(trans_cost)
                 else:
+                    # logging.info('Transaction Type : {}'.format(row[TRANSACTION_TYPE]))
                     sold_coins.append(trans_cost)
 
             logging.info(f"Coin is {key}")

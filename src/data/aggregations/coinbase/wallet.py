@@ -62,6 +62,7 @@ class wallet():
         # Built in function to get account details from coinbase client.
         
         try:
+            logging.info("Connected to Coinbase.")
             self.client = Client(api_key, api_secret)
             self.accounts = self.client.get_accounts()
             self.coins = self.get_transactions()
@@ -137,8 +138,13 @@ class wallet():
                     sold_coins.append(trans_cost)
 
             logging.info(f"Coin is {key}")
-            spot_rate = float(self.client.get_spot_price(currency_pair = (key+ SPOT_USD))[AMOUNT])
-            
+            logging.info(f"Spot rate variable {key+SPOT_USD}")
+            try:
+                spot_rate = float(self.client.get_spot_price(currency_pair = (key+ SPOT_USD))[AMOUNT])
+            except Exception as error:
+                logging.error(f"Unable to get spot rate for {key}")
+                spot_rate = 0
+
             usd_bought = group[group[TRANSACTION_TYPE] != SOLD][USD_VALUE].sum()
             usd_sold = abs(group[group[TRANSACTION_TYPE] == SOLD][USD_VALUE].sum())
             coin_value = group[COIN_BALANCE].sum() * spot_rate

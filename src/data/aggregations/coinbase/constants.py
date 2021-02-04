@@ -29,6 +29,6 @@ PURCHASED_RECORDS = 'purchased_records'
 RECORDS = 'records'
 SOLD_RECORDS = 'sold_records'
 
-IGNORE = ['USD']
+IGNORE = ['USD', 'XRP']
 # ignore for testing purpose
 # IGNORE = ['USD', 'ALGO', 'YFI' , 'CGLD', 'COMP' , 'MKR' , 'REN' , 'BTC']
